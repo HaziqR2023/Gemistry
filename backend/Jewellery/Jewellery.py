@@ -1,58 +1,88 @@
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
+from flask_cors import CORS
+import uuid  # Importing the uuid module to generate unique certification IDs
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///jewellery.db'
+CORS(app)
+
+# Database Configuration
+app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+mysqlconnector://root:root@localhost:3306/Jewellery'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
 db = SQLAlchemy(app)
+migrate = Migrate(app, db)
 
 class Jewellery(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
+    __tablename__ = 'Jewellery'
+    
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.String(100), nullable=False)
-    base_price = db.Column(db.Float, nullable=False)
-    certification_id = db.Column(db.String(50), unique=True, nullable=True)
+    category = db.Column(db.String(100), nullable=False)
+    price = db.Column(db.Float, nullable=False)
+    item_number = db.Column(db.Integer, unique=True, nullable=False)
     description = db.Column(db.Text, nullable=True)
+    is_active = db.Column(db.Boolean, default=True)
+    certification_id = db.Column(db.String(50), unique=True, nullable=True)  # Added certification_id column
 
-@app.before_first_request
-def create_tables():
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'category': self.category,
+            'price': self.price,
+            'marked_up_price': round(self.price * 1.2, 2),
+            'item_number': self.item_number,
+            'description': self.description,
+            'is_active': self.is_active,
+            'certification_id': self.certification_id  # Return certification_id in the dictionary
+        }
+
+with app.app_context():
     db.create_all()
 
 @app.route('/jewellery', methods=['POST'])
 def create_jewellery():
     data = request.json
+    
+    # Generate a unique certification ID
+    certification_id = str(uuid.uuid4())  # Using uuid4 to generate a unique certification ID
+    
     new_jewellery = Jewellery(
-        name=data['name'],
-        base_price=data['base_price'],
-        certification_id=data.get('certification_id'),
-        description=data.get('description')
+        name=data['JewelleryName'],
+        category=data['JewelleryCategory'],
+        price=data['JewelleryPrice'],
+        item_number=data['JewelleryItem'],
+        description=data.get('JewelleryDesc'),
+        is_active=data.get('isActive', True),
+        certification_id=certification_id  # Assign the generated certification ID
     )
+    
     db.session.add(new_jewellery)
     db.session.commit()
-    return jsonify({'message': 'Jewellery created', 'id': new_jewellery.id}), 201
+    return jsonify({'message': 'Jewellery created', 'id': new_jewellery.id, 'certification_id': certification_id}), 201
+
+@app.route('/jewellery', methods=['GET'])
+def get_all_jewellery():
+    jewellery_list = Jewellery.query.all()
+    return jsonify([j.to_dict() for j in jewellery_list])
 
 @app.route('/jewellery/<int:id>', methods=['GET'])
 def get_jewellery(id):
     jewellery = Jewellery.query.get_or_404(id)
-    return jsonify({
-        'id': jewellery.id,
-        'name': jewellery.name,
-        'base_price': jewellery.base_price,
-        'marked_up_price': round(jewellery.base_price * 1.2, 2),
-        'certification_id': jewellery.certification_id,
-        'description': jewellery.description
-    })
+    return jsonify(jewellery.to_dict())
 
 @app.route('/jewellery/<int:id>', methods=['PUT'])
 def update_jewellery(id):
     jewellery = Jewellery.query.get_or_404(id)
     data = request.json
-    if 'name' in data:
-        jewellery.name = data['name']
-    if 'base_price' in data:
-        jewellery.base_price = data['base_price']
-    if 'certification_id' in data:
-        jewellery.certification_id = data['certification_id']
-    if 'description' in data:
-        jewellery.description = data['description']
+    jewellery.name = data.get('JewelleryName', jewellery.name)
+    jewellery.category = data.get('JewelleryCategory', jewellery.category)
+    jewellery.price = data.get('JewelleryPrice', jewellery.price)
+    jewellery.item_number = data.get('JewelleryItem', jewellery.item_number)
+    jewellery.description = data.get('JewelleryDesc', jewellery.description)
+    jewellery.is_active = data.get('isActive', jewellery.is_active)
     db.session.commit()
     return jsonify({'message': 'Jewellery updated'})
 
@@ -66,7 +96,7 @@ def delete_jewellery(id):
 @app.route('/jewellery/<int:id>/price', methods=['GET'])
 def get_marked_up_price(id):
     jewellery = Jewellery.query.get_or_404(id)
-    return jsonify({'marked_up_price': round(jewellery.base_price * 1.2, 2)})
+    return jsonify({'marked_up_price': round(jewellery.price * 1.2, 2)})
 
 @app.route('/jewellery/<int:id>/certification', methods=['GET'])
 def get_certification(id):
