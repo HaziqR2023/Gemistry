@@ -75,16 +75,36 @@ def get_jewellery(id):
 
 @app.route('/jewellery/<int:id>', methods=['PUT'])
 def update_jewellery(id):
-    jewellery = Jewellery.query.get_or_404(id)
+    # jewellery = Jewellery.query.get_or_404(id)
+    # data = request.json
+    # jewellery.name = data.get('JewelleryName', jewellery.name)
+    # jewellery.category = data.get('JewelleryCategory', jewellery.category)
+    # jewellery.price = data.get('JewelleryPrice', jewellery.price)
+    # jewellery.item_number = data.get('JewelleryItem', jewellery.item_number)
+    # jewellery.description = data.get('JewelleryDesc', jewellery.description)
+    # jewellery.is_active = data.get('isActive', jewellery.is_active)
+    # db.session.commit()
+    # return jsonify({'message': 'Jewellery updated'})
+
+    jewellery = Jewellery.query.get_or_404(id)  # Retrieve the item by ID
     data = request.json
+
+    # Update only the fields that are passed in the request
     jewellery.name = data.get('JewelleryName', jewellery.name)
     jewellery.category = data.get('JewelleryCategory', jewellery.category)
     jewellery.price = data.get('JewelleryPrice', jewellery.price)
     jewellery.item_number = data.get('JewelleryItem', jewellery.item_number)
     jewellery.description = data.get('JewelleryDesc', jewellery.description)
     jewellery.is_active = data.get('isActive', jewellery.is_active)
-    db.session.commit()
-    return jsonify({'message': 'Jewellery updated'})
+
+    # Commit the transaction to save changes in the database
+    try:
+        db.session.commit()
+        return jsonify({'message': 'Jewellery updated'}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'message': 'Error updating jewellery', 'error': str(e)}), 500
+
 
 @app.route('/jewellery/<int:id>', methods=['DELETE'])
 def delete_jewellery(id):
